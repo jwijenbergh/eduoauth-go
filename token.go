@@ -89,7 +89,7 @@ func (l *tokenLock) Access(ctx context.Context) (string, error) {
 	}
 	if tr == nil {
 		log.Logf("No token response after refreshing")
-		return "", errors.New("No token response after refreshing")
+		return "", errors.New("no token response after refreshing")
 	}
 	// store the previous refresh token
 	pr := l.t.Refresh

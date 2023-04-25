@@ -57,7 +57,7 @@ type OAuth struct {
 func (oauth *OAuth) AccessToken(ctx context.Context) (string, error) {
 	tl := oauth.token
 	if tl == nil {
-		return "", errors.New("No token structure available")
+		return "", errors.New("no token structure available")
 	}
 	return tl.Access(ctx)
 }
@@ -125,9 +125,9 @@ func (oauth *OAuth) tokensWithCallback(ctx context.Context) error {
 // tokenResponse fills the OAuth token response structure by the response
 // The URL that is input here is used for additional context
 // It returns this structure and an error if there is one
-func (oauth *OAuth) tokenResponse(reader io.Reader, url string) (*TokenResponse, error) {
+func (oauth *OAuth) tokenResponse(reader io.Reader) (*TokenResponse, error) {
 	if oauth.token == nil {
-		return nil, errors.New("No oauth structure when filling token")
+		return nil, errors.New("no oauth structure when filling token")
 	}
 	res := TokenResponse{}
 
@@ -186,15 +186,13 @@ func checkResponse(res http.Response) (io.Reader, error) {
 // Refresh tokens: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-1.3.2
 // If it was unsuccessful it returns an error.
 func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) error {
-	// Make sure the verifier is set as the parameter
-	// so that the server can verify that we are the actual owner of the authorization code
-	u := oauth.TokenURL
-
 	port, err := oauth.ListenerPort()
 	if err != nil {
 		return err
 	}
 
+	// Make sure the verifier is set as the parameter
+	// so that the server can verify that we are the actual owner of the authorization code
 	data := url.Values{
 		"client_id":     {oauth.ClientID},
 		"code":          {authCode},
@@ -204,7 +202,7 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 	}
 	now := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", u, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", oauth.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return err
 	}
@@ -222,12 +220,12 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 		return err
 	}
 
-	tr, err := oauth.tokenResponse(read, u)
+	tr, err := oauth.tokenResponse(read)
 	if err != nil {
 		return err
 	}
 	if tr == nil {
-		return errors.New("No token response after authorization code")
+		return errors.New("no token response after authorization code")
 	}
 
 	oauth.token.UpdateResponse(*tr, now)
@@ -249,10 +247,10 @@ func (oauth *OAuth) UpdateTokens(t Token) {
 func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenResponse, time.Time, error) {
 	u := oauth.TokenURL
 	if oauth.token == nil {
-		return nil, time.Time{}, errors.New("No oauth token structure in refresh")
+		return nil, time.Time{}, errors.New("no oauth token structure in refresh")
 	}
 	if oauth.ClientID == "" {
-		return nil, time.Time{}, errors.New("No client ID was cached for refresh")
+		return nil, time.Time{}, errors.New("no client ID was cached for refresh")
 	}
 	// Test if we have a http client and if not recreate one
 	if oauth.httpClient == nil {
@@ -282,7 +280,7 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 		return nil, time.Time{}, err
 	}
 
-	tr, err := oauth.tokenResponse(read, u)
+	tr, err := oauth.tokenResponse(read)
 	return tr, now, err
 }
 

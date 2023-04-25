@@ -30,7 +30,7 @@ func Test_redirectURI(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		port += 1
+		port ++
 		o := OAuth{RedirectPath: c.redirect}
 		got := o.redirectURI(port)
 		if got != c.want {
