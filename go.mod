@@ -1,3 +1,3 @@
-module codeberg.org/jwijenbergh/eduoauth-go
+module github.com/jwijenbergh/eduoauth-go
 
 go 1.20
