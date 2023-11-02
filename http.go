@@ -7,7 +7,7 @@ import (
 // RoundTrip is a custom roundtripper for HTTP
 // Inspired by https://github.com/golang/oauth2/blob/master/transport.go
 type RoundTrip struct {
-	// t is the token which also contains a mutex
+	// Token is the token which also contains a mutex
 	Token *tokenLock
 }
 
