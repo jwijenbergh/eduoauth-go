@@ -2,7 +2,6 @@
 // However, we try to follow some recommendations from the v2.1 oauth draft RFC
 // Some specific things we implement here:
 // - PKCE (RFC 7636)
-// - ISS (RFC 9207)
 // - We only support bearer tokens
 package eduoauth
 
@@ -28,11 +27,6 @@ type OAuth struct {
 
 	// The HTTP client that is used
 	httpClient *http.Client
-
-	// ISS indicates the issuer identifier of the authorization server as defined in RFC 9207
-	// We differentiate between nil and "" here
-	// If you pass a non-nil value, we require ISS
-	ISS *string `json:"iss"`
 
 	// BaseAuthorizationURL is the URL where authorization should take place
 	BaseAuthorizationURL string `json:"base_authorization_url"`
@@ -341,9 +335,6 @@ func writeResponseHTML(w http.ResponseWriter, title string, message string) erro
 
 // exchangeSession is a structure that gets passed to the callback for easy access to the current state.
 type exchangeSession struct {
-	// ISS indicates the issuer identifier
-	ISS *string
-
 	// State is the expected URL state parameter
 	State string
 
@@ -370,14 +361,7 @@ func (oauth *OAuth) redirectURI(port int) string {
 // authcode gets the authorization code from the url
 // It returns the code and an error if there is one
 func (s *exchangeSession) Authcode(url *url.URL) (string, error) {
-	// ISS: https://www.rfc-editor.org/rfc/rfc9207.html
 	q := url.Query()
-	iss := q.Get("iss")
-	// If we want an empty ISS, we accept anything
-	if s.ISS != nil && *s.ISS != iss {
-		return "", fmt.Errorf("failed matching ISS; expected '%s' got '%s'", *s.ISS, iss)
-	}
-
 	// Make sure the state is present and matches to protect against cross-site request forgeries
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-7.15
 	state := q.Get("state")
@@ -471,7 +455,6 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 		red = fmt.Sprintf("http://127.0.0.1:%d%s", port, oauth.RedirectPath)
 	}
 	oauth.session = exchangeSession{
-		ISS: oauth.ISS,
 		State:    state,
 		Verifier: v,
 		ErrChan:  make(chan error),

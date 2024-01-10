@@ -3,7 +3,6 @@ package eduoauth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -142,11 +141,10 @@ func Test_secretJSON(t *testing.T) {
 }
 
 func Test_AuthURL(t *testing.T) {
-	iss := "local"
 	auth := "https://127.0.0.1/auth"
 	token := "https://127.0.0.1/token"
 	id := "client_id"
-	o := OAuth{ClientID: id, ISS: &iss, BaseAuthorizationURL: auth, TokenURL: token}
+	o := OAuth{ClientID: id, BaseAuthorizationURL: auth, TokenURL: token}
 	scope := "test"
 	s, err := o.AuthURL("test")
 	if err != nil {
@@ -172,11 +170,6 @@ func Test_AuthURL(t *testing.T) {
 		t.Fatalf("Returned Auth URL cannot be parsed with error: %v", err)
 	}
 
-	port, err := o.ListenerPort()
-	if err != nil {
-		t.Fatalf("Listener port cannot be found with error: %v", err)
-	}
-
 	c := []struct {
 		query string
 		want  string
@@ -185,7 +178,7 @@ func Test_AuthURL(t *testing.T) {
 		{query: "code_challenge_method", want: "S256"},
 		{query: "response_type", want: "code"},
 		{query: "scope", want: scope},
-		{query: "redirect_uri", want: fmt.Sprintf("http://127.0.0.1:%d", port)},
+		{query: "redirect_uri", want: o.session.RedirectURI},
 	}
 
 	q := u.Query()
