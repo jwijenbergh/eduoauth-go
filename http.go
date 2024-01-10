@@ -28,6 +28,6 @@ func (r *RoundTrip) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	reqClone := req.Clone(req.Context())
-	reqClone.Header.Set("Authorization", "Bearer " + access)
+	reqClone.Header.Set("Authorization", "Bearer "+access)
 	return http.DefaultTransport.RoundTrip(reqClone)
 }

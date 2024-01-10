@@ -63,7 +63,7 @@ func (oauth *OAuth) AccessToken(ctx context.Context) (string, error) {
 }
 
 // NewHTTPClient returns a new HTTP client
-func (oauth *OAuth) NewHTTPClient() *http.Client{
+func (oauth *OAuth) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &RoundTrip{
 			Token: oauth.token,
@@ -163,7 +163,7 @@ func (oauth *OAuth) Token() Token {
 }
 
 func checkResponse(res http.Response) (io.Reader, error) {
-	read := http.MaxBytesReader(nil, res.Body, 10 << 20)
+	read := http.MaxBytesReader(nil, res.Body, 10<<20)
 	ok := res.StatusCode >= 200 && res.StatusCode < 300
 	// status code is ok just return so we can use the reader later
 	if ok {
@@ -455,11 +455,11 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 		red = fmt.Sprintf("http://127.0.0.1:%d%s", port, oauth.RedirectPath)
 	}
 	oauth.session = exchangeSession{
-		State:    state,
-		Verifier: v,
-		ErrChan:  make(chan error),
+		State:       state,
+		Verifier:    v,
+		ErrChan:     make(chan error),
 		RedirectURI: red,
-		Listener: l,
+		Listener:    l,
 	}
 
 	params := map[string]string{

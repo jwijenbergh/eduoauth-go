@@ -11,25 +11,25 @@ import (
 
 func Test_redirectURI(t *testing.T) {
 	port := 0
-	cases := []struct{
+	cases := []struct {
 		redirect string
-		want string
+		want     string
 	}{
 		{
 			redirect: "",
-			want: "http://127.0.0.1:1",
+			want:     "http://127.0.0.1:1",
 		},
 		{
 			redirect: "/",
-			want: "http://127.0.0.1:2/",
+			want:     "http://127.0.0.1:2/",
 		},
 		{
 			redirect: "/callback",
-			want: "http://127.0.0.1:3/callback",
+			want:     "http://127.0.0.1:3/callback",
 		},
 	}
 	for _, c := range cases {
-		port ++
+		port++
 		o := OAuth{RedirectPath: c.redirect}
 		got := o.redirectURI(port)
 		if got != c.want {
@@ -87,7 +87,6 @@ func Test_accessToken(t *testing.T) {
 	if got != want {
 		t.Fatalf("Access token not equal, Got: %v, Want: %v", got, want)
 	}
-
 
 	// Set the tokens as expired
 	o.SetTokenExpired()
