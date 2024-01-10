@@ -46,6 +46,9 @@ type OAuth struct {
 	// RedirectPath is the path of the redirect, this is only used if a custom redirect is not given
 	RedirectPath string `json:"redirect_path"`
 
+	// TokensUpdated is the function that is called when tokens are updated
+	TokensUpdated func(tok Token) `json:"-"`
+
 	// session is the internal in progress OAuth session
 	session exchangeSession
 

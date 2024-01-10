@@ -42,6 +42,9 @@ type tokenRefresher struct {
 	Token
 	// Refresher is the function that refreshes the token
 	Refresher func(context.Context, string) (*TokenResponse, time.Time, error)
+
+	// Updated is called whenever the tokens are updated
+	Updated func(tok Token)
 }
 
 // tokenLock is a wrapper around token that protects it with a lock
@@ -121,6 +124,9 @@ func (l *tokenLock) updateInternal(r Token) {
 	l.t.Access = r.Access
 	l.t.Refresh = r.Refresh
 	l.t.ExpiredTimestamp = r.ExpiredTimestamp
+	if l.t.Updated != nil {
+		l.t.Updated(r)
+	}
 }
 
 // Update updates the token structure using the internal function but locks
