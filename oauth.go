@@ -40,7 +40,10 @@ type OAuth struct {
 	// TokenURL is the URL where tokens should be obtained
 	TokenURL string `json:"token_url"`
 
-	// RedirectPath is the path of the redirect
+	// CustomRedirect is a redirect URI. it specifies whether or not a custom redirect URI should be used
+	CustomRedirect string `json:"custom_redirect"`
+
+	// RedirectPath is the path of the redirect, this is only used if a custom redirect is not given
 	RedirectPath string `json:"redirect_path"`
 
 	// session is the internal in progress OAuth session
@@ -75,14 +78,13 @@ func (oauth *OAuth) NewHTTPClient() *http.Client{
 // If it was unsuccessful it returns an error.
 // @see https://www.ietf.org/archive/id/draft-ietf-oauth-v2-1-07.html#section-8.4.2
 // "Loopback Interface Redirection".
-func (oauth *OAuth) setupListener() error {
+func (oauth *OAuth) setupListener() (net.Listener, error) {
 	// create a listener
 	lst, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return fmt.Errorf("net.Listen failed with error: %w", err)
+		return nil, fmt.Errorf("net.Listen failed with error: %w", err)
 	}
-	oauth.session.Listener = lst
-	return nil
+	return lst, nil
 }
 
 // tokensWithCallback gets the OAuth tokens using a local web server
@@ -186,11 +188,6 @@ func checkResponse(res http.Response) (io.Reader, error) {
 // Refresh tokens: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-1.3.2
 // If it was unsuccessful it returns an error.
 func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) error {
-	port, err := oauth.ListenerPort()
-	if err != nil {
-		return err
-	}
-
 	// Make sure the verifier is set as the parameter
 	// so that the server can verify that we are the actual owner of the authorization code
 	data := url.Values{
@@ -198,7 +195,7 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 		"code":          {authCode},
 		"code_verifier": {oauth.session.Verifier},
 		"grant_type":    {"authorization_code"},
-		"redirect_uri":  {oauth.redirectURI(port)},
+		"redirect_uri":  {oauth.session.RedirectURI},
 	}
 	now := time.Now()
 
@@ -341,17 +338,23 @@ func writeResponseHTML(w http.ResponseWriter, title string, message string) erro
 
 // exchangeSession is a structure that gets passed to the callback for easy access to the current state.
 type exchangeSession struct {
+	// ISS indicates the issuer identifier
+	ISS *string
+
 	// State is the expected URL state parameter
 	State string
 
 	// Verifier is the preimage of the challenge
 	Verifier string
 
+	// RedirectURI is the passed redirect URI
+	RedirectURI string
+
+	// Listener is the listener where the servers 'listens' on
+	Listener net.Listener
+
 	// ErrChan is used to send the error from the handler
 	ErrChan chan error
-
-	// Listener is the current listener
-	Listener net.Listener
 }
 
 func (oauth *OAuth) redirectURI(port int) string {
@@ -363,16 +366,13 @@ func (oauth *OAuth) redirectURI(port int) string {
 
 // authcode gets the authorization code from the url
 // It returns the code and an error if there is one
-func (oauth *OAuth) authcode(url *url.URL) (string, error) {
-	// get the current session
-	s := oauth.session
-
+func (s *exchangeSession) Authcode(url *url.URL) (string, error) {
 	// ISS: https://www.rfc-editor.org/rfc/rfc9207.html
 	q := url.Query()
 	iss := q.Get("iss")
 	// If we want an empty ISS, we accept anything
-	if oauth.ISS != nil && *oauth.ISS != iss {
-		return "", fmt.Errorf("failed matching ISS; expected '%s' got '%s'", *oauth.ISS, iss)
+	if s.ISS != nil && *s.ISS != iss {
+		return "", fmt.Errorf("failed matching ISS; expected '%s' got '%s'", *s.ISS, iss)
 	}
 
 	// Make sure the state is present and matches to protect against cross-site request forgeries
@@ -384,6 +384,16 @@ func (oauth *OAuth) authcode(url *url.URL) (string, error) {
 	// The state is the first entry
 	if state != s.State {
 		return "", fmt.Errorf("failed matching state; expected '%s' got '%s'", s.State, state)
+	}
+
+	// check if an error is present
+	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-09#name-authorization-response (error response)
+	errc := q.Get("error")
+	if errc != "" {
+		// these are optional but let's include them
+		errdesc := q.Get("error_description")
+		erruri := q.Get("error_uri")
+		return "", fmt.Errorf("failed obtaining oauthorization code, error code '%s', error description '%s', error uri '%s'", errc, errdesc, erruri)
 	}
 
 	// No authorization code
@@ -399,7 +409,7 @@ func (oauth *OAuth) authcode(url *url.URL) (string, error) {
 // This function is called by the http handler and returns an error if the tokens cannot be obtained
 func (oauth *OAuth) tokenHandler(ctx context.Context, url *url.URL) error {
 	// Get the authorization code
-	c, err := oauth.authcode(url)
+	c, err := oauth.session.Authcode(url)
 	if err != nil {
 		return err
 	}
@@ -425,15 +435,6 @@ func (oauth *OAuth) Handler(w http.ResponseWriter, req *http.Request) {
 	oauth.session.ErrChan <- err
 }
 
-// ListenerPort gets the listener for the OAuth web server
-// It returns the port as an integer and an error if there is any.
-func (oauth *OAuth) ListenerPort() (int, error) {
-	if oauth.session.Listener == nil {
-		return 0, errors.New("failed to get listener port")
-	}
-	return oauth.session.Listener.Addr().(*net.TCPAddr).Port, nil
-}
-
 // AuthURL gets the authorization url to start the OAuth procedure.
 func (oauth *OAuth) AuthURL(scope string) (string, error) {
 	// TODO: Enforce redirect path here for eduvpn-common?
@@ -453,21 +454,26 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 	oauth.UpdateTokens(Token{})
 
 	// Fill the struct with the necessary fields filled for the next call to getting the HTTP client
+	red := oauth.CustomRedirect
+
+	var l net.Listener
+	if red == "" {
+		var lerr error
+		// set up the listener to get the redirect URI
+		l, lerr = oauth.setupListener()
+		if lerr != nil {
+			return "", fmt.Errorf("oauth.setupListener error: %w", err)
+		}
+		port := l.Addr().(*net.TCPAddr).Port
+		red = fmt.Sprintf("http://127.0.0.1:%d%s", port, oauth.RedirectPath)
+	}
 	oauth.session = exchangeSession{
+		ISS: oauth.ISS,
 		State:    state,
 		Verifier: v,
 		ErrChan:  make(chan error),
-	}
-
-	// set up the listener to get the redirect URI
-	if err = oauth.setupListener(); err != nil {
-		return "", fmt.Errorf("oauth.setupListener error: %w", err)
-	}
-
-	// Get the listener port
-	port, err := oauth.ListenerPort()
-	if err != nil {
-		return "", fmt.Errorf("oauth.ListenerPort error: %w", err)
+		RedirectURI: red,
+		Listener: l,
 	}
 
 	params := map[string]string{
@@ -477,7 +483,7 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 		"response_type":         "code",
 		"scope":                 scope,
 		"state":                 state,
-		"redirect_uri":          oauth.redirectURI(port),
+		"redirect_uri":          red,
 	}
 
 	// construct the URL with the parameters
@@ -496,12 +502,27 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 	return u.String(), nil
 }
 
+func (oauth *OAuth) tokensWithURI(ctx context.Context, uri string) error {
+	// parse URI
+	p, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	return oauth.tokenHandler(ctx, p)
+}
+
 // Exchange starts the OAuth exchange by getting the tokens with the redirect callback
 // If it was unsuccessful it returns an error.
-func (oauth *OAuth) Exchange(ctx context.Context) error {
+func (oauth *OAuth) Exchange(ctx context.Context, uri string) error {
 	// If there is no HTTP client defined, create a new one
 	if oauth.httpClient == nil {
 		oauth.httpClient = &http.Client{}
+	}
+	if uri != "" {
+		return oauth.tokensWithURI(ctx, uri)
+	}
+	if oauth.CustomRedirect != "" {
+		return errors.New("a custom redirect is initialized but no authorization uri response is given by the client")
 	}
 	return oauth.tokensWithCallback(ctx)
 }
