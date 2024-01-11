@@ -228,7 +228,7 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 
 func (oauth *OAuth) UpdateTokens(t Token) {
 	if oauth.token == nil {
-		oauth.token = &tokenLock{t: &tokenRefresher{Refresher: oauth.refreshResponse}}
+		oauth.token = &tokenLock{t: &tokenRefresher{Refresher: oauth.refreshResponse, Updated: oauth.TokensUpdated}}
 	}
 	oauth.token.Update(t)
 }
