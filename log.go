@@ -7,7 +7,7 @@ type Logger interface {
 
 type nullLogger struct{}
 
-func (l nullLogger) Log(_ string)            {}
+func (l nullLogger) Log(_ string)                    {}
 func (l nullLogger) Logf(_ string, _ ...interface{}) {}
 
 var log Logger = nullLogger{}
