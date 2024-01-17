@@ -91,7 +91,7 @@ func (l *tokenLock) Access(ctx context.Context) (string, error) {
 		return "", &TokensInvalidError{Cause: fmt.Sprintf("tokens failed refresh with error: %v", err)}
 	}
 	if tr == nil {
-		log.Logf("No token response after refreshing")
+		log.Log("No token response after refreshing")
 		return "", errors.New("no token response after refreshing")
 	}
 	// store the previous refresh token
@@ -104,7 +104,7 @@ func (l *tokenLock) Access(ctx context.Context) (string, error) {
 	// set the previous refresh token if the new one is empty
 	// This is for 2.x servers
 	if l.t.Refresh == "" {
-		log.Logf("The previous refresh token is set as the response had no refresh token")
+		log.Log("The previous refresh token is set as the response had no refresh token")
 		l.t.Refresh = pr
 	}
 	return l.t.Access, nil
