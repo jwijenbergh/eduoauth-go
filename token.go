@@ -3,7 +3,6 @@ package eduoauth
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -87,8 +86,8 @@ func (l *tokenLock) Access(ctx context.Context) (string, error) {
 	tr, s, err := l.t.Refresher(ctx, l.t.Refresh)
 	if err != nil {
 		log.Logf("Got a refresh token error: %v", err)
-		// We have failed to ensure the tokens due to refresh not working
-		return "", &TokensInvalidError{Cause: fmt.Sprintf("tokens failed refresh with error: %v", err)}
+		// This already wraps TokensInvalidError when it must
+		return "", err
 	}
 	if tr == nil {
 		log.Log("No token response after refreshing")

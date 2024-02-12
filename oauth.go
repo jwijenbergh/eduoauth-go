@@ -169,15 +169,7 @@ func checkResponse(res http.Response) (io.Reader, error) {
 	if ok {
 		return read, nil
 	}
-	// else just read the whole body to get the error response and return
-	b, err := io.ReadAll(read)
-	if err != nil {
-		// We do error: %v here and not %w is because we do not want to wrap the error
-		// As it is not the actual cause of the error
-		// It is just there for misc info
-		return nil, fmt.Errorf("request was not successful, http code: %v, could not read body with error: %v", res.StatusCode, err)
-	}
-	return nil, fmt.Errorf("request was not successful, http code: %v, body: %v", res.StatusCode, string(b))
+	return read, fmt.Errorf("request was not successful, http code: '%v'", res.StatusCode)
 }
 
 // tokensWithAuthCode gets the access and refresh tokens using the authorization code
@@ -211,7 +203,15 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 	// response is guaranteed to be non-nil here so we can dereference it
 	read, err := checkResponse(*res)
 	if err != nil {
-		return err
+		// else just read the whole body to get the error response and return
+		b, rerr := io.ReadAll(read)
+		if err != nil {
+			// We do error: %v here and not %w is because we do not want to wrap the error
+			// As it is not the actual cause of the error
+			// It is just there for misc info
+			return fmt.Errorf("request was not successful: %v, could not read body with error: %v", err, rerr)
+		}
+		return fmt.Errorf("request was not successful: %v, body: %v", err, b)
 	}
 
 	tr, err := oauth.tokenResponse(read)
@@ -231,6 +231,10 @@ func (oauth *OAuth) UpdateTokens(t Token) {
 		oauth.token = &tokenLock{t: &tokenRefresher{Refresher: oauth.refreshResponse, Updated: oauth.TokensUpdated}}
 	}
 	oauth.token.Update(t)
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
 }
 
 // refreshResponse gets the refresh token response with a refresh token
@@ -271,7 +275,16 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 	defer res.Body.Close()
 	read, err := checkResponse(*res)
 	if err != nil {
-		return nil, time.Time{}, err
+		errRes := errorResponse{}
+		decoder := json.NewDecoder(read)
+		derr := decoder.Decode(&errRes)
+		if derr != nil {
+			return nil, time.Time{}, fmt.Errorf("failed to decode refresh token response: %w", derr)
+		}
+		if errRes.Error == "invalid_grant" {
+			return nil, time.Time{}, &TokensInvalidError{Cause: "got invalid_grant when refreshing the tokens"}
+		}
+		return nil, time.Time{}, fmt.Errorf("refresh token error is not invalid_grant: '%s'", errRes.Error)
 	}
 
 	tr, err := oauth.tokenResponse(read)
