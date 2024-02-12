@@ -1,4 +1,4 @@
-// Package oauth implement an oauth client defined in e.g. rfc 6749
+// Package eduoauth implement an oauth client defined in e.g. rfc 6749
 // However, we try to follow some recommendations from the v2.1 oauth draft RFC
 // Some specific things we implement here:
 // - PKCE (RFC 7636)
@@ -153,6 +153,7 @@ func (oauth *OAuth) SetTokenRenew() {
 	}
 }
 
+// Token returns the token structure
 func (oauth *OAuth) Token() Token {
 	t := Token{}
 	if oauth.token != nil {
@@ -226,6 +227,7 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 	return nil
 }
 
+// UpdateTokens internally sets the tokens to `t`
 func (oauth *OAuth) UpdateTokens(t Token) {
 	if oauth.token == nil {
 		oauth.token = &tokenLock{t: &tokenRefresher{Refresher: oauth.refreshResponse, Updated: oauth.TokensUpdated}}
@@ -526,12 +528,8 @@ func (oauth *OAuth) Exchange(ctx context.Context, uri string) error {
 	return oauth.tokensWithCallback(ctx)
 }
 
-type CancelledCallbackError struct{}
-
-func (e *CancelledCallbackError) Error() string {
-	return "client cancelled OAuth"
-}
-
+// TokensInvalidError is the error that is returned when the tokens are deemed to be invalid
+// E.g. due to getting invalid grant when refreshing tokens or when no token is returned
 type TokensInvalidError struct {
 	Cause string
 }

@@ -71,7 +71,7 @@ func Test_accessToken(t *testing.T) {
 	// Now we internally update the refresh function and refresh token, we should get new tokens
 	refresh := "refresh"
 	o.token.t.Refresh = refresh
-	o.token.t.Refresher = func(ctx context.Context, refreshToken string) (*TokenResponse, time.Time, error) {
+	o.token.t.Refresher = func(_ context.Context, refreshToken string) (*TokenResponse, time.Time, error) {
 		if refreshToken != refresh {
 			t.Fatalf("Passed refresh token to refresher not equal to updated refresh token, got: %v, want: %v", refreshToken, refresh)
 		}
@@ -95,7 +95,7 @@ func Test_accessToken(t *testing.T) {
 	// Now let's act like a eduVPN 2.x server, we give no refresh token back. When we refresh the previous refresh token should be gotten
 	o.token.t.Refresh = refresh
 	prevRefresh := refresh
-	o.token.t.Refresher = func(ctx context.Context, refreshToken string) (*TokenResponse, time.Time, error) {
+	o.token.t.Refresher = func(_ context.Context, refreshToken string) (*TokenResponse, time.Time, error) {
 		if refreshToken != refresh {
 			t.Fatalf("Passed refresh token to refresher not equal to updated refresh token, got: %v, want: %v", refreshToken, refresh)
 		}

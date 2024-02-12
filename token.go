@@ -22,7 +22,7 @@ type TokenResponse struct {
 	Expires int64 `json:"expires_in"`
 }
 
-// The public type that can be passed to an update function
+// Token is the public type that can be passed to an update function
 // It contains our access and refresh tokens with a timestamp
 type Token struct {
 	// Access is the Access token returned by the server
