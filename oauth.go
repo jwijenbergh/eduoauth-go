@@ -20,35 +20,55 @@ import (
 	"time"
 )
 
+// EndpointResponse is the response for getting the authorization and token URL
+type EndpointResponse struct {
+	// AuthorizationURL is the OAuth url for authorization
+	AuthorizationURL string
+	// TokenURL is the OAuth url for getting (new) tokens
+	TokenURL string
+}
+
 // OAuth defines the main structure for this package.
 type OAuth struct {
 	// The cached client id so we don't have to pass it around
-	ClientID string `json:"client_id"`
+	ClientID string
 
 	// The HTTP client that is used
 	httpClient *http.Client
 
-	// BaseAuthorizationURL is the URL where authorization should take place
-	BaseAuthorizationURL string `json:"base_authorization_url"`
-
-	// TokenURL is the URL where tokens should be obtained
-	TokenURL string `json:"token_url"`
+	// EndpointFunc is the function to get the token and authorization URLs
+	EndpointFunc func(context.Context) (*EndpointResponse, error)
 
 	// CustomRedirect is a redirect URI. it specifies whether or not a custom redirect URI should be used
-	CustomRedirect string `json:"custom_redirect"`
+	CustomRedirect string
 
 	// RedirectPath is the path of the redirect, this is only used if a custom redirect is not given
-	RedirectPath string `json:"redirect_path"`
+	RedirectPath string
 
 	// TokensUpdated is the function that is called when tokens are updated
-	TokensUpdated func(tok Token) `json:"-"`
+	TokensUpdated func(tok Token)
 
 	// session is the internal in progress OAuth session
 	session exchangeSession
 
+	// cachedEndpoints are the cached token endpoints
+	cachedEndpoints *EndpointResponse
+
 	// Token is where the access and refresh tokens are stored along with the timestamps
 	// It is protected by a lock
 	token *tokenLock
+}
+
+func (oauth *OAuth) tokenEndpoints(ctx context.Context) (*EndpointResponse, error) {
+	if oauth.EndpointFunc == nil {
+		return nil, errors.New("no token endpoint updater function available")
+	}
+	ep, err := oauth.EndpointFunc(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth endpoints: %w", err)
+	}
+	oauth.cachedEndpoints = ep
+	return ep, nil
 }
 
 // AccessToken gets the OAuth access token used for contacting the server API
@@ -189,7 +209,11 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 	}
 	now := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", oauth.TokenURL, strings.NewReader(data.Encode()))
+	if oauth.cachedEndpoints == nil {
+		return errors.New("cannot get tokens with authorization code as no endpoints have been fetched before")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", oauth.cachedEndpoints.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return err
 	}
@@ -245,7 +269,11 @@ type errorResponse struct {
 // Refresh tokens: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-1.3.2
 // If it was unsuccessful it returns an error.
 func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenResponse, time.Time, error) {
-	u := oauth.TokenURL
+	ep, err := oauth.tokenEndpoints(ctx)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	u := ep.TokenURL
 	if oauth.token == nil {
 		return nil, time.Time{}, errors.New("no oauth token structure in refresh")
 	}
@@ -438,7 +466,7 @@ func (oauth *OAuth) Handler(w http.ResponseWriter, req *http.Request) {
 }
 
 // AuthURL gets the authorization url to start the OAuth procedure.
-func (oauth *OAuth) AuthURL(scope string) (string, error) {
+func (oauth *OAuth) AuthURL(ctx context.Context, scope string) (string, error) {
 	// TODO: Enforce redirect path here for eduvpn-common?
 	// Generate the verifier and challenge
 	v, err := genVerifier()
@@ -487,10 +515,15 @@ func (oauth *OAuth) AuthURL(scope string) (string, error) {
 		"redirect_uri":          red,
 	}
 
-	// construct the URL with the parameters
-	u, err := url.Parse(oauth.BaseAuthorizationURL)
+	ep, err := oauth.tokenEndpoints(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse OAuth base URL '%s', with error: %w", oauth.BaseAuthorizationURL, err)
+		return "", err
+	}
+
+	// construct the URL with the parameters
+	u, err := url.Parse(ep.AuthorizationURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse OAuth base URL '%s', with error: %w", ep.AuthorizationURL, err)
 	}
 
 	q := u.Query()
