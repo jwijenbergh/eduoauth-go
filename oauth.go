@@ -37,7 +37,7 @@ type OAuth struct {
 	httpClient *http.Client
 
 	// EndpointFunc is the function to get the token and authorization URLs
-	EndpointFunc func(context.Context) (*EndpointResponse, error)
+	EndpointFunc func(context.Context) (*EndpointResponse, error) `json:"-"`
 
 	// CustomRedirect is a redirect URI. it specifies whether or not a custom redirect URI should be used
 	CustomRedirect string
@@ -46,7 +46,7 @@ type OAuth struct {
 	RedirectPath string
 
 	// TokensUpdated is the function that is called when tokens are updated
-	TokensUpdated func(tok Token)
+	TokensUpdated func(tok Token) `json:"-"`
 
 	// session is the internal in progress OAuth session
 	session exchangeSession

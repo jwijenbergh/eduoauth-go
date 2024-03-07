@@ -140,12 +140,15 @@ func Test_secretJSON(t *testing.T) {
 }
 
 func Test_AuthURL(t *testing.T) {
-	auth := "https://127.0.0.1/auth"
-	token := "https://127.0.0.1/token"
 	id := "client_id"
-	o := OAuth{ClientID: id, BaseAuthorizationURL: auth, TokenURL: token}
+	o := OAuth{ClientID: id, EndpointFunc: func(context.Context) (*EndpointResponse, error) {
+		return &EndpointResponse{
+			AuthorizationURL: "https://127.0.0.1/auth",
+			TokenURL: "https://127.0.0.1/token",
+		}, nil
+	}}
 	scope := "test"
-	s, err := o.AuthURL("test")
+	s, err := o.AuthURL(context.Background(), "test")
 	if err != nil {
 		t.Fatalf("Error in getting OAuth URL: %v", err)
 	}
