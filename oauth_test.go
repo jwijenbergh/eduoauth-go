@@ -144,7 +144,7 @@ func Test_AuthURL(t *testing.T) {
 	o := OAuth{ClientID: id, EndpointFunc: func(context.Context) (*EndpointResponse, error) {
 		return &EndpointResponse{
 			AuthorizationURL: "https://127.0.0.1/auth",
-			TokenURL: "https://127.0.0.1/token",
+			TokenURL:         "https://127.0.0.1/token",
 		}, nil
 	}}
 	scope := "test"
