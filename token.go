@@ -64,16 +64,15 @@ func (l *tokenLock) Access(ctx context.Context) (string, error) {
 		log.Log("no token refresher struct found")
 		return "", &TokensInvalidError{Cause: "no token refresh structure"}
 	}
-	log.Log("Getting access token")
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	// The tokens are not expired yet
 	// So they should be valid, re-login not neede
 	if !l.expired() {
-		log.Log("Access token is not expired, returning")
 		return l.t.Access, nil
 	}
+	log.Log("Access token is expired")
 
 	// Check if refresh is even possible by doing a simple check if the refresh token is empty
 	// This is not needed but reduces API calls to the server
