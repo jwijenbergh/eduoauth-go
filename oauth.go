@@ -77,7 +77,7 @@ func (oauth *OAuth) tokenEndpoints(ctx context.Context) (*EndpointResponse, erro
 func (oauth *OAuth) AccessToken(ctx context.Context) (string, error) {
 	tl := oauth.token
 	if tl == nil {
-		return "", errors.New("no token structure available")
+		return "", &TokensInvalidError{Cause: "no token structure available"}
 	}
 	return tl.Access(ctx)
 }
