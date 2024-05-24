@@ -89,7 +89,7 @@ func (oauth *OAuth) AccessToken(ctx context.Context) (string, error) {
 func (oauth *OAuth) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &RoundTrip{
-			Token: oauth.token,
+			Token:     oauth.token,
 			Transport: oauth.transport(),
 		},
 	}
