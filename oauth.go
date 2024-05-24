@@ -48,6 +48,9 @@ type OAuth struct {
 	// TokensUpdated is the function that is called when tokens are updated
 	TokensUpdated func(tok Token) `json:"-"`
 
+	// Transport is the inner HTTP roundtripper to use
+	Transport http.RoundTripper
+
 	// session is the internal in progress OAuth session
 	session exchangeSession
 
@@ -87,6 +90,7 @@ func (oauth *OAuth) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &RoundTrip{
 			Token: oauth.token,
+			Transport: oauth.transport(),
 		},
 	}
 }
@@ -263,6 +267,13 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+func (oauth *OAuth) transport() http.RoundTripper {
+	if oauth.Transport == nil {
+		return http.DefaultTransport
+	}
+	return oauth.Transport
+}
+
 // refreshResponse gets the refresh token response with a refresh token
 // This response contains the access and refresh tokens, together with a timestamp
 // Access tokens: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-1.4
@@ -282,7 +293,7 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 	}
 	// Test if we have a http client and if not recreate one
 	if oauth.httpClient == nil {
-		oauth.httpClient = &http.Client{}
+		oauth.httpClient = &http.Client{Transport: oauth.transport()}
 	}
 
 	data := url.Values{
@@ -550,7 +561,7 @@ func (oauth *OAuth) tokensWithURI(ctx context.Context, uri string) error {
 func (oauth *OAuth) Exchange(ctx context.Context, uri string) error {
 	// If there is no HTTP client defined, create a new one
 	if oauth.httpClient == nil {
-		oauth.httpClient = &http.Client{}
+		oauth.httpClient = &http.Client{Transport: oauth.transport()}
 	}
 	if uri != "" {
 		return oauth.tokensWithURI(ctx, uri)

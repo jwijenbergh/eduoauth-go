@@ -9,6 +9,8 @@ import (
 type RoundTrip struct {
 	// Token is the token which also contains a mutex
 	Token *tokenLock
+	// Transport is the HTTP transport
+	Transport http.RoundTripper
 }
 
 // RoundTrip is the overriden HTTP roundtripper that adds the bearer token
@@ -29,5 +31,5 @@ func (r *RoundTrip) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	reqClone := req.Clone(req.Context())
 	reqClone.Header.Set("Authorization", "Bearer "+access)
-	return http.DefaultTransport.RoundTrip(reqClone)
+	return r.Transport.RoundTrip(reqClone)
 }
