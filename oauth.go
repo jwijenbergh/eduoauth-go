@@ -51,6 +51,10 @@ type OAuth struct {
 	// Transport is the inner HTTP roundtripper to use
 	Transport http.RoundTripper
 
+	// UserAgent is the HTTP user agent to use for requests made by this library
+	// Empty string means it will not be set and it will be the default Go user agent
+	UserAgent string
+
 	// session is the internal in progress OAuth session
 	session exchangeSession
 
@@ -86,6 +90,8 @@ func (oauth *OAuth) AccessToken(ctx context.Context) (string, error) {
 }
 
 // NewHTTPClient returns a new HTTP client
+// Note: This does not have the UserAgent automatically added to each request
+// You can set it yourself on the requests you do with the client
 func (oauth *OAuth) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &RoundTrip{
@@ -222,6 +228,9 @@ func (oauth *OAuth) tokensWithAuthCode(ctx context.Context, authCode string) err
 		return err
 	}
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+	if oauth.UserAgent != "" {
+		req.Header.Add("User-Agent", oauth.UserAgent)
+	}
 
 	res, err := oauth.httpClient.Do(req)
 	if err != nil {
@@ -308,6 +317,9 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 		return nil, time.Time{}, err
 	}
 	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+	if oauth.UserAgent != "" {
+		req.Header.Add("User-Agent", oauth.UserAgent)
+	}
 
 	res, err := oauth.httpClient.Do(req)
 	if err != nil {
