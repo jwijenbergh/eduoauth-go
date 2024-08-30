@@ -338,7 +338,7 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 		if errRes.Error == "invalid_grant" {
 			return nil, time.Time{}, &TokensInvalidError{Cause: fmt.Sprintf("got invalid_grant when refreshing the tokens with description: %v", errRes.Description)}
 		}
-		return nil, time.Time{}, fmt.Errorf("refresh token error is not invalid_grant: '%s'", errRes.Error)
+		return nil, time.Time{}, fmt.Errorf("refresh token error is not invalid_grant: '%s', description: %v", errRes.Error, errRes.Description)
 	}
 
 	tr, err := oauth.tokenResponse(read)
