@@ -273,7 +273,8 @@ func (oauth *OAuth) UpdateTokens(t Token) {
 }
 
 type errorResponse struct {
-	Error string `json:"error"`
+	Error       string `json:"error"`
+	Description string `json:"error_description"`
 }
 
 func (oauth *OAuth) transport() http.RoundTripper {
@@ -335,7 +336,7 @@ func (oauth *OAuth) refreshResponse(ctx context.Context, r string) (*TokenRespon
 			return nil, time.Time{}, fmt.Errorf("failed to decode refresh token response: %w", derr)
 		}
 		if errRes.Error == "invalid_grant" {
-			return nil, time.Time{}, &TokensInvalidError{Cause: "got invalid_grant when refreshing the tokens"}
+			return nil, time.Time{}, &TokensInvalidError{Cause: fmt.Sprintf("got invalid_grant when refreshing the tokens with description: %v", errRes.Description)}
 		}
 		return nil, time.Time{}, fmt.Errorf("refresh token error is not invalid_grant: '%s'", errRes.Error)
 	}
