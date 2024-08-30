@@ -3,11 +3,46 @@ package eduoauth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+type refreshHandler struct {
+	data []byte
+	rc   int
+}
+
+func (h refreshHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.WriteHeader(h.rc)
+	_, err := w.Write(h.data)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func assertError(t *testing.T, err error, wantErr string) {
+	gv := ""
+	if err != nil {
+		gv = err.Error()
+	}
+	if wantErr != gv {
+		if wantErr == "" {
+			wantErr = "empty string"
+		}
+		t.Fatalf("Errors not equal, got: %v, want: %v", gv, wantErr)
+	}
+}
 
 func Test_redirectURI(t *testing.T) {
 	port := 0
@@ -116,6 +151,83 @@ func Test_accessToken(t *testing.T) {
 	}
 	if o.token.t.Refresh != prevRefresh {
 		t.Fatalf("Refresh token is not equal to previous refresh token after refreshing and getting back an empty refresh token, got: %v, want: %v", o.token.t.Refresh, prevRefresh)
+	}
+}
+
+func Test_refreshResponse(t *testing.T) {
+	cases := []struct {
+		rh      refreshHandler
+		tr      *TokenResponse
+		wantErr string
+	}{
+		{
+			rh: refreshHandler{
+				data: []byte(`
+{
+    "error": "invalid_grant",
+    "error_description": "test"
+}
+				`),
+				rc: 403,
+			},
+			wantErr: "tokens are invalid due to: got invalid_grant when refreshing the tokens with description: test",
+		},
+		{
+			rh: refreshHandler{
+				data: []byte(`
+{
+    "error": "invalid_grant"
+}
+				`),
+				rc: 403,
+			},
+			wantErr: "tokens are invalid due to: got invalid_grant when refreshing the tokens with description: ",
+		},
+		{
+			rh: refreshHandler{
+				data: []byte(`
+{
+    "access_token": "newaccess",
+    "refresh_token": "newrefresh",
+    "token_type": "bearer",
+    "expires_in": 3600
+}
+				`),
+				rc: 200,
+			},
+			tr: &TokenResponse{
+				Access:  "newaccess",
+				Refresh: "newrefresh",
+				Type:    "bearer",
+				Expires: 3600,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		serv := httptest.NewServer(c.rh)
+		defer serv.Close()
+		o := OAuth{
+			ClientID:  "test",
+			UserAgent: "test",
+			EndpointFunc: func(context.Context) (*EndpointResponse, error) {
+				return &EndpointResponse{
+					TokenURL: fmt.Sprintf("http://%s", serv.Listener.Addr().String()),
+				}, nil
+			},
+		}
+
+		o.UpdateTokens(Token{
+			Access:           "accesstest",
+			Refresh:          "refreshtest",
+			ExpiredTimestamp: time.Now(),
+		})
+
+		tr, _, err := o.refreshResponse(context.Background(), "testrefreshtoken")
+		if !reflect.DeepEqual(tr, c.tr) {
+			t.Fatal("token responses are not equal")
+		}
+		assertError(t, err, c.wantErr)
 	}
 }
 
