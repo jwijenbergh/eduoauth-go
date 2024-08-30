@@ -44,7 +44,7 @@ func assertError(t *testing.T, err error, wantErr string) {
 	}
 }
 
-func Test_redirectURI(t *testing.T) {
+func TestRedirectURI(t *testing.T) {
 	port := 0
 	cases := []struct {
 		redirect string
@@ -73,7 +73,7 @@ func Test_redirectURI(t *testing.T) {
 	}
 }
 
-func Test_accessToken(t *testing.T) {
+func TestAccessToken(t *testing.T) {
 	o := OAuth{}
 	ctx := context.Background()
 	_, err := o.AccessToken(ctx)
@@ -154,7 +154,7 @@ func Test_accessToken(t *testing.T) {
 	}
 }
 
-func Test_refreshResponse(t *testing.T) {
+func TestRefreshResponse(t *testing.T) {
 	cases := []struct {
 		rh      refreshHandler
 		tr      *TokenResponse
@@ -231,7 +231,7 @@ func Test_refreshResponse(t *testing.T) {
 	}
 }
 
-func Test_secretJSON(t *testing.T) {
+func TestSecretJSON(t *testing.T) {
 	// Access and refresh tokens should not be present in marshalled JSON
 	a := "ineedtobesecret_access"
 	r := "ineedtobesecret_refresh"
@@ -251,7 +251,7 @@ func Test_secretJSON(t *testing.T) {
 	}
 }
 
-func Test_AuthURL(t *testing.T) {
+func TestAuthURL(t *testing.T) {
 	id := "client_id"
 	o := OAuth{ClientID: id, EndpointFunc: func(context.Context) (*EndpointResponse, error) {
 		return &EndpointResponse{

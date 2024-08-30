@@ -25,7 +25,7 @@ func TestMakeRandomByteSlice(t *testing.T) {
 	}
 }
 
-func Test_verifiergen(t *testing.T) {
+func TestVerifiergen(t *testing.T) {
 	v, err := genVerifier()
 	if err != nil {
 		t.Fatalf("Gen verifier error: %v", err)
@@ -46,7 +46,7 @@ func Test_verifiergen(t *testing.T) {
 	}
 }
 
-func Test_stategen(t *testing.T) {
+func TestStategen(t *testing.T) {
 	s1, err := genState()
 	if err != nil {
 		t.Fatalf("Error when generating state 1: %v", err)
@@ -62,7 +62,7 @@ func Test_stategen(t *testing.T) {
 	}
 }
 
-func Test_challengergen(t *testing.T) {
+func TestChallengergen(t *testing.T) {
 	verifier := "test"
 	// Calculated using: base64.urlsafe_b64encode(hashlib.sha256("test".encode("utf-8")).digest()).decode("utf-8").replace("=", "") in Python
 	// This test might not be the best because we're now comparing two different implementations, but at least it gives us a way to see if we messed something up in a commit

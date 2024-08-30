@@ -1,5 +1,6 @@
 # UNRELEASED
 - Add tests for refresh response parsing
+- Convert snake_case test names to camelCase
 
 # 1.1.1 (2024-08-30)
 - Parse and output error_description in errors returned when refreshing the tokens
