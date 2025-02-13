@@ -1,6 +1,7 @@
-# UNRELEASED
+# 1.1.2 (2025-02-13)
 - Add tests for refresh response parsing
 - Convert snake_case test names to camelCase
+- Fix setupListener wrong error wrapping
 
 # 1.1.1 (2024-08-30)
 - Parse and output error_description in errors returned when refreshing the tokens
