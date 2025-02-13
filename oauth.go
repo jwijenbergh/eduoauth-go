@@ -516,7 +516,7 @@ func (oauth *OAuth) AuthURL(ctx context.Context, scope string) (string, error) {
 		// set up the listener to get the redirect URI
 		l, lerr = oauth.setupListener()
 		if lerr != nil {
-			return "", fmt.Errorf("oauth.setupListener error: %w", err)
+			return "", fmt.Errorf("oauth.setupListener error: %w", lerr)
 		}
 		port := l.Addr().(*net.TCPAddr).Port
 		red = fmt.Sprintf("http://127.0.0.1:%d%s", port, oauth.RedirectPath)
