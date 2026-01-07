@@ -39,6 +39,9 @@ type OAuth struct {
 	// EndpointFunc is the function to get the token and authorization URLs
 	EndpointFunc func(context.Context) (*EndpointResponse, error) `json:"-"`
 
+	// FormPost is true if response_mode form_post should be used
+	FormPost bool
+
 	// CustomRedirect is a redirect URI. it specifies whether or not a custom redirect URI should be used
 	CustomRedirect string
 
@@ -427,13 +430,12 @@ func (oauth *OAuth) redirectURI(port int) string {
 
 // authcode gets the authorization code from the url
 // It returns the code and an error if there is one
-func (s *exchangeSession) Authcode(url *url.URL) (string, error) {
-	q := url.Query()
+func (s *exchangeSession) Authcode(values url.Values) (string, error) {
 	// Make sure the state is present and matches to protect against cross-site request forgeries
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-7.15
-	state := q.Get("state")
+	state := values.Get("state")
 	if state == "" {
-		return "", fmt.Errorf("failed retrieving parameter 'state' from '%s'", url)
+		return "", fmt.Errorf("no parameter 'state' found in URL")
 	}
 	// The state is the first entry
 	if state != s.State {
@@ -442,18 +444,18 @@ func (s *exchangeSession) Authcode(url *url.URL) (string, error) {
 
 	// check if an error is present
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-09#name-authorization-response (error response)
-	errc := q.Get("error")
+	errc := values.Get("error")
 	if errc != "" {
 		// these are optional but let's include them
-		errdesc := q.Get("error_description")
-		erruri := q.Get("error_uri")
+		errdesc := values.Get("error_description")
+		erruri := values.Get("error_uri")
 		return "", fmt.Errorf("failed obtaining oauthorization code, error code '%s', error description '%s', error uri '%s'", errc, errdesc, erruri)
 	}
 
 	// No authorization code
-	code := q.Get("code")
+	code := values.Get("code")
 	if code == "" {
-		return "", fmt.Errorf("failed retrieving parameter 'code' from '%s'", url)
+		return "", fmt.Errorf("no parameter 'code' found in URL")
 	}
 
 	return code, nil
@@ -461,9 +463,9 @@ func (s *exchangeSession) Authcode(url *url.URL) (string, error) {
 
 // tokenHandler gets the tokens using the authorization code that is obtained through the url
 // This function is called by the http handler and returns an error if the tokens cannot be obtained
-func (oauth *OAuth) tokenHandler(ctx context.Context, url *url.URL) error {
+func (oauth *OAuth) tokenHandler(ctx context.Context, values url.Values) error {
 	// Get the authorization code
-	c, err := oauth.session.Authcode(url)
+	c, err := oauth.session.Authcode(values)
 	if err != nil {
 		return err
 	}
@@ -476,21 +478,41 @@ func (oauth *OAuth) tokenHandler(ctx context.Context, url *url.URL) error {
 // The callback to retrieve the authorization code: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-04#section-1.3.1
 // It sends an error to the session channel (can be nil)
 func (oauth *OAuth) Handler(w http.ResponseWriter, req *http.Request) {
-	err := oauth.tokenHandler(req.Context(), req.URL)
-	if err != nil {
-		_ = writeResponseHTML(
-			w,
-			"Authorization Failed",
-			"The authorization has failed. See the log file for more information.",
-		)
+	var err error
+	defer func() {
+		if err != nil {
+			_ = writeResponseHTML(
+				w,
+				"Authorization Failed",
+				"The authorization has failed. See the log file for more information.",
+			)
+		}
+		oauth.session.ErrChan <- err
+	}()
+	var values url.Values
+	if oauth.FormPost {
+		err = req.ParseForm()
+		if err != nil {
+			return
+		}
+		values = req.PostForm
 	} else {
-		_ = writeResponseHTML(w, "Authorized", "The client has been successfully authorized. You can close this browser window.")
+		values = req.URL.Query()
 	}
-	oauth.session.ErrChan <- err
+	err = oauth.tokenHandler(req.Context(), values)
+	if err != nil {
+		return
+	}
+	_ = writeResponseHTML(w, "Authorized", "The client has been successfully authorized. You can close this browser window.")
 }
 
 // AuthURL gets the authorization url to start the OAuth procedure.
 func (oauth *OAuth) AuthURL(ctx context.Context, scope string) (string, error) {
+	// We cannot handle form post on custom redirects
+	if oauth.FormPost && oauth.CustomRedirect != "" {
+		return "", fmt.Errorf("cannot handle form post with custom redirect")
+	}
+
 	// TODO: Enforce redirect path here for eduvpn-common?
 	// Generate the verifier and challenge
 	v, err := genVerifier()
@@ -538,6 +560,9 @@ func (oauth *OAuth) AuthURL(ctx context.Context, scope string) (string, error) {
 		"state":                 state,
 		"redirect_uri":          red,
 	}
+	if oauth.FormPost {
+		params["response_mode"] = "form_post"
+	}
 
 	ep, err := oauth.tokenEndpoints(ctx)
 	if err != nil {
@@ -566,7 +591,7 @@ func (oauth *OAuth) tokensWithURI(ctx context.Context, uri string) error {
 	if err != nil {
 		return err
 	}
-	return oauth.tokenHandler(ctx, p)
+	return oauth.tokenHandler(ctx, p.Query())
 }
 
 // Exchange starts the OAuth exchange by getting the tokens with the redirect callback
