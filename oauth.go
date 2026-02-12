@@ -490,7 +490,12 @@ func (oauth *OAuth) Handler(w http.ResponseWriter, req *http.Request) {
 		oauth.session.ErrChan <- err
 	}()
 	var values url.Values
-	if oauth.FormPost {
+	if req.Method != http.MethodGet && req.Method != http.MethodPost {
+		err = errors.New("only GET or POST response is allowed")
+		return
+	}
+
+	if req.Method == http.MethodPost {
 		err = req.ParseForm()
 		if err != nil {
 			return
